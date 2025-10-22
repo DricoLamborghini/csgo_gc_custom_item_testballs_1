@@ -8,7 +8,9 @@ https://github.com/mikkokko/csgo_gc
 
 
 
-# csgo_gc
+# csgo_gc_testballs_1
+
+Test for parsing custom items tru custom items_game because I am a very smart individual
 
 ⚠️ **Warning:** This project is incomplete and not ready for general use.
 
