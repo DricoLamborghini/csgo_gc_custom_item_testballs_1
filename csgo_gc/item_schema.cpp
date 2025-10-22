@@ -111,12 +111,7 @@ uint32_t LootListItem::CaseRarity() const
 
 ItemSchema::ItemSchema()
 {
-    // We'll parse the base schema first, then optionally parse a second custom schema (items_drico_game.txt).
-    // Order matters:
-    // 1) Parse items / prefabs / attributes / sticker_kits / paint_kits / paint_kits_rarity / music_definitions from base.
-    // 2) Parse the same blocks from the custom schema (so custom paint/sticker definitions are available).
-    // 3) Parse unusual_loot_lists (unchanged).
-    // 4) Parse client_loot_lists and revolving_loot_lists from base then custom (so custom lists can reference any previously registered defs).
+    // Parse both schemas :)
 
     KeyValue baseSchema{ "root" };
     if (!baseSchema.ParseFromFile("csgo/scripts/items/items_game.txt"))
