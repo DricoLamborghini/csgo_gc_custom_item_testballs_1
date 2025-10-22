@@ -111,58 +111,111 @@ uint32_t LootListItem::CaseRarity() const
 
 ItemSchema::ItemSchema()
 {
-    KeyValue itemSchema{ "root" };
-    if (!itemSchema.ParseFromFile("csgo/scripts/items/items_game.txt"))
+    // We'll parse the base schema first, then optionally parse a second custom schema (items_drico_game.txt).
+    // Order matters:
+    // 1) Parse items / prefabs / attributes / sticker_kits / paint_kits / paint_kits_rarity / music_definitions from base.
+    // 2) Parse the same blocks from the custom schema (so custom paint/sticker definitions are available).
+    // 3) Parse unusual_loot_lists (unchanged).
+    // 4) Parse client_loot_lists and revolving_loot_lists from base then custom (so custom lists can reference any previously registered defs).
+
+    KeyValue baseSchema{ "root" };
+    if (!baseSchema.ParseFromFile("csgo/scripts/items/items_game.txt"))
     {
         assert(false);
         return;
     }
 
-    const KeyValue *itemsGame = itemSchema.GetSubkey("items_game");
-    if (!itemsGame)
+    // get the base items_game block
+    const KeyValue *baseItemsGame = baseSchema.GetSubkey("items_game");
+    if (!baseItemsGame)
     {
         assert(false);
         return;
     }
 
-    const KeyValue *itemsKey = itemsGame->GetSubkey("items");
-    if (itemsKey)
+    // ---- parse core blocks from base schema ----
+    if (const KeyValue *itemsKey = baseItemsGame->GetSubkey("items"))
     {
-        ParseItems(itemsKey, itemsGame->GetSubkey("prefabs"));
+        ParseItems(itemsKey, baseItemsGame->GetSubkey("prefabs"));
     }
 
-    const KeyValue *attributesKey = itemsGame->GetSubkey("attributes");
-    if (attributesKey)
+    if (const KeyValue *attributesKey = baseItemsGame->GetSubkey("attributes"))
     {
         ParseAttributes(attributesKey);
     }
 
-    const KeyValue *stickerKitsKey = itemsGame->GetSubkey("sticker_kits");
-    if (stickerKitsKey)
+    if (const KeyValue *stickerKitsKey = baseItemsGame->GetSubkey("sticker_kits"))
     {
         ParseStickerKits(stickerKitsKey);
     }
 
-    const KeyValue *paintKitsKey = itemsGame->GetSubkey("paint_kits");
-    if (paintKitsKey)
+    if (const KeyValue *paintKitsKey = baseItemsGame->GetSubkey("paint_kits"))
     {
         ParsePaintKits(paintKitsKey);
     }
 
-    const KeyValue *paintKitsRarityKey = itemsGame->GetSubkey("paint_kits_rarity");
-    if (paintKitsRarityKey)
+    if (const KeyValue *paintKitsRarityKey = baseItemsGame->GetSubkey("paint_kits_rarity"))
     {
         ParsePaintKitRarities(paintKitsRarityKey);
     }
 
-    const KeyValue *musicDefinitionsKey = itemsGame->GetSubkey("music_definitions");
-    if (musicDefinitionsKey)
+    if (const KeyValue *musicDefinitionsKey = baseItemsGame->GetSubkey("music_definitions"))
     {
         ParseMusicDefinitions(musicDefinitionsKey);
     }
 
-    // unusual loot lists are not included in client_loot_lists
-    // we need to parse these after items and paint kits but before client_loot_lists
+    // ---- now attempt to load custom schema and parse the same core blocks from it (if present) ----
+    KeyValue customSchema{ "root" };
+    bool haveCustom = customSchema.ParseFromFile("csgo/scripts/items/items_drico_game.txt");
+    if (haveCustom)
+    {
+        Platform::Print("ItemSchema: loaded custom schema items_drico_game.txt\n");
+
+        const KeyValue *customItemsGame = customSchema.GetSubkey("items_game");
+        if (customItemsGame)
+        {
+            if (const KeyValue *customItemsKey = customItemsGame->GetSubkey("items"))
+            {
+                // parse custom items (can add/override item definitions)
+                ParseItems(customItemsKey, customItemsGame->GetSubkey("prefabs"));
+            }
+
+            if (const KeyValue *customAttributesKey = customItemsGame->GetSubkey("attributes"))
+            {
+                ParseAttributes(customAttributesKey);
+            }
+
+            if (const KeyValue *customStickerKitsKey = customItemsGame->GetSubkey("sticker_kits"))
+            {
+                ParseStickerKits(customStickerKitsKey);
+            }
+
+            if (const KeyValue *customPaintKitsKey = customItemsGame->GetSubkey("paint_kits"))
+            {
+                ParsePaintKits(customPaintKitsKey);
+            }
+
+            if (const KeyValue *customPaintKitsRarityKey = customItemsGame->GetSubkey("paint_kits_rarity"))
+            {
+                ParsePaintKitRarities(customPaintKitsRarityKey);
+            }
+
+            if (const KeyValue *customMusicDefinitionsKey = customItemsGame->GetSubkey("music_definitions"))
+            {
+                ParseMusicDefinitions(customMusicDefinitionsKey);
+            }
+        }
+        else
+        {
+            Platform::Print("ItemSchema: custom schema missing top-level 'items_game' block\n");
+        }
+    }
+    else
+    {
+        Platform::Print("ItemSchema: no custom schema (items_drico_game.txt) found, continuing with base schema\n");
+    }
+
+    // ---- unusual loot lists (unchanged behaviour) ----
     {
         KeyValue unusualLootLists{ "unusual_loot_lists" };
 
@@ -177,16 +230,33 @@ ItemSchema::ItemSchema()
         }
     }
 
-    const KeyValue *lootListsKey = itemsGame->GetSubkey("client_loot_lists");
-    if (lootListsKey)
+    // ---- parse loot lists and revolving lists from base schema ----
+    if (const KeyValue *baseLootListsKey = baseItemsGame->GetSubkey("client_loot_lists"))
     {
-        ParseLootLists(lootListsKey, false);
+        ParseLootLists(baseLootListsKey, false);
     }
 
-    const KeyValue *revolvingLootListsKey = itemsGame->GetSubkey("revolving_loot_lists");
-    if (revolvingLootListsKey)
+    if (const KeyValue *baseRevolvingLootListsKey = baseItemsGame->GetSubkey("revolving_loot_lists"))
     {
-        ParseRevolvingLootLists(revolvingLootListsKey);
+        ParseRevolvingLootLists(baseRevolvingLootListsKey);
+    }
+
+    // ---- parse loot lists and revolving lists from custom schema (if present) ----
+    if (haveCustom)
+    {
+        const KeyValue *customItemsGame = customSchema.GetSubkey("items_game");
+        if (customItemsGame)
+        {
+            if (const KeyValue *customLootListsKey = customItemsGame->GetSubkey("client_loot_lists"))
+            {
+                ParseLootLists(customLootListsKey, false);
+            }
+
+            if (const KeyValue *customRevolvingLootListsKey = customItemsGame->GetSubkey("revolving_loot_lists"))
+            {
+                ParseRevolvingLootLists(customRevolvingLootListsKey);
+            }
+        }
     }
 }
 
